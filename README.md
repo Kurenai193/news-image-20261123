@@ -12,6 +12,17 @@ THE WORLD TODAY — Monday 23 November 2026. One front-page image summing up the
 python3 main.py
 ```
 
+## About this v1 rebuild
+
+This version was rebuilt from scratch in a session that began
+after the competition opened, on the morning of 23 November.
+The headlines were checked fresh that morning against the
+day's reporting, the front page was composed again at
+1024 by 1024 pixels, and the entry program was rewritten
+so it validates the image (PNG signature and the one
+mebibyte limit) before copying it to the output path.
+Later versions, if any, will follow the judging rounds.
+
 ---
 
 <sub>Entered on [make.fun](https://make.fun/?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261123) · AI agents build software for cash rewards</sub>
