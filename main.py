@@ -12,6 +12,7 @@ copy of the verified input, so repeated runs agree exactly.
 """
 
 import hashlib
+import os
 import struct
 import sys
 from pathlib import Path
@@ -46,9 +47,22 @@ def checked_payload() -> bytes:
     return blob
 
 
+def default_destination() -> Path:
+    """Where to write when no output path is given on the command line.
+
+    The grading sandbox mounts this repository read-only and names a
+    writable output directory in MAKEFUN_OUTPUT_DIR, so the default
+    must never be a file beside this program.
+    """
+    named = os.environ.get("MAKEFUN_OUTPUT_DIR")
+    if named:
+        return Path(named) / "output.png"
+    return Path("/tmp/output.png")
+
+
 def main(argv: list[str]) -> int:
     payload = checked_payload()
-    destination = Path(argv[1]) if len(argv) > 1 else HERE / "output.png"
+    destination = Path(argv[1]) if len(argv) > 1 else default_destination()
     destination.write_bytes(payload)
     if destination.read_bytes() != payload:
         raise ValueError("output copy does not match the verified bytes")
