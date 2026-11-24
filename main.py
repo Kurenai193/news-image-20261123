@@ -1,76 +1,60 @@
-"""THE WORLD TODAY - Monday 23 November 2026 (news-image-20261123).
+"""Deliver the day's front page as the program's output artifact.
 
-This program is the whole entry. It carries one finished front-page
-image, entry.png, in the repository root and writes that exact file
-to the competition output location. The front page sums up the
-world news of 23 November 2026 in a single 1024 by 1024 picture:
+The picture itself is painted by build_frontpage.py, which writes
+entry.png beside this file. This entrypoint's job is acceptance and
+delivery: confirm the stored picture is a genuine PNG of at most
+1024 by 1024 pixels and at most one mebibyte, prove it by hashing
+the bytes, then copy it to the output path named on the command
+line (a plain copy of the file when no argument is given).
 
-- centre: COP31 in Antalya ends with no climate pact, after the
-  longest COP on record; the EU rejected a draft deal that never
-  mentioned fossil fuels, and the UN chief spoke of deep
-  disappointment at the lack of consensus
-- Indonesia: a confectionery factory fire in Serang kills three
-  people and leaves thirty-six workers missing
-- Ukraine: a Russian drone strikes a five-storey apartment block
-  in Dymer in the Kyiv region, with fourteen people missing
-- space, the bright story of the day: the Japan-Europe probe
-  BepiColombo arrives at Mercury after an eight-year cruise
-- Nigeria: a boat carrying mourners to a funeral capsizes in
-  Bayelsa State and twenty-four people lose their lives
-- Baltic: the Russian cargo ship Sparta II burns in the Gulf
-  of Finland after a drone hit, its crew evacuated
-- ticker: Iran and Bahrain at the UN, China and the US in a
-  telecom row, and South Korea's education chief resigning
-  over an AI cheating scandal
-
-The program uses only the Python standard library, needs no
-network, and is deterministic: every run writes identical bytes.
+Standard library only, no network, and the output is a byte-for-byte
+copy of the verified input, so repeated runs agree exactly.
 """
 
 import hashlib
-import os
-import shutil
+import struct
+import sys
+from pathlib import Path
 
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-MAX_BYTES = 1024 * 1024
-
-
-def source_image_path() -> str:
-    folder = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(folder, "entry.png")
-
-
-def check_image(path: str) -> int:
-    size = os.path.getsize(path)
-    if size > MAX_BYTES:
-        raise ValueError("entry image is larger than one mebibyte")
-    with open(path, "rb") as handle:
-        head = handle.read(len(PNG_SIGNATURE))
-    if head != PNG_SIGNATURE:
-        raise ValueError("entry image is not a PNG file")
-    return size
+HERE = Path(__file__).resolve().parent
+SOURCE = HERE / "entry.png"
+LIMIT_BYTES = 1024 * 1024
+LIMIT_SIDE = 1024
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
-def output_directory() -> str:
-    # The grader sets MAKEFUN_OUTPUT_DIR; /output is the fallback
-    # named in the competition rules, so local runs agree with it.
-    return os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
+def png_dimensions(blob: bytes) -> tuple[int, int]:
+    """Read width and height from the IHDR chunk of a PNG byte string."""
+    if blob[:8] != PNG_MAGIC:
+        raise ValueError("entry.png does not start with the PNG signature")
+    if blob[12:16] != b"IHDR":
+        raise ValueError("entry.png is missing its IHDR chunk")
+    width, height = struct.unpack(">II", blob[16:24])
+    return width, height
 
 
-def deliver() -> str:
-    src = source_image_path()
-    expected = check_image(src)
-    out_dir = output_directory()
-    os.makedirs(out_dir, exist_ok=True)
-    dst = os.path.join(out_dir, "entry.png")
-    shutil.copyfile(src, dst)
-    if os.path.getsize(dst) != expected:
-        raise IOError("copied image has the wrong size")
-    with open(dst, "rb") as handle:
-        digest = hashlib.sha256(handle.read()).hexdigest()
-    print("wrote", dst, expected, "bytes, sha256", digest)
-    return dst
+def checked_payload() -> bytes:
+    """Load entry.png and enforce the competition's size rules."""
+    blob = SOURCE.read_bytes()
+    if len(blob) > LIMIT_BYTES:
+        raise ValueError(f"entry.png is {len(blob)} bytes, over the 1 MiB cap")
+    width, height = png_dimensions(blob)
+    if width > LIMIT_SIDE or height > LIMIT_SIDE:
+        raise ValueError(f"entry.png is {width}x{height}, over the 1024 cap")
+    digest = hashlib.sha256(blob).hexdigest()
+    print(f"verified entry.png: {width}x{height}, {len(blob)} bytes, sha256 {digest}")
+    return blob
+
+
+def main(argv: list[str]) -> int:
+    payload = checked_payload()
+    destination = Path(argv[1]) if len(argv) > 1 else HERE / "output.png"
+    destination.write_bytes(payload)
+    if destination.read_bytes() != payload:
+        raise ValueError("output copy does not match the verified bytes")
+    print(f"wrote {destination} ({len(payload)} bytes)")
+    return 0
 
 
 if __name__ == "__main__":
-    deliver()
+    raise SystemExit(main(sys.argv))
